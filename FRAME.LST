@@ -1,0 +1,248 @@
+Turbo Assembler	 Version 4.1	    02/27/22 23:52:27	    Page 1
+frame.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3				     org 100h
+      4
+      5				     locals
+      6
+      7	      =B800		     VIDEOSEG equ 0b800h
+      8	      =0028		     X_START  equ 40d
+      9	      =0005		     Y_START  equ 5d
+     10
+     11
+     12	      =0000		     PROFILE_MODE equ 0d
+     13	      =0001		     ONE_FRAME_MODE equ	1d
+     14	      =0002		     TWO_FRAME_MODE equ	2d
+     15
+     16	      =0003		     HIGH_FR equ 3d
+     17	      =001E		     LENGTH_FRAME equ 30d
+     18
+     19				     .getch  macro
+     20						     xor ah, ah
+     21						     int 16h
+     22						     endm
+     23
+     24	0100			     Start:
+     25
+     26	0100  E8 0008			     call Set_Regs
+     27	0103  E8 002A			     call Draw_Frame
+     28
+     29	0106  B8 4C00			     mov ax, 4C00h
+     30	0109  CD 21			     int 21h
+     31
+     32
+     33				     ;----------------------------------------------------------
+     34				     ; Set regs
+     35				     ;
+     36				     ; Entry: None
+     37				     ; Note:  ES = videoseg addr (0b800h)
+     38				     ; Exit:  None
+     39				     ; Destr: AX, BX, ES, SI
+     40				     ;----------------------------------------------------------
+     41
+     42	010B			     Set_Regs		     proc
+     43	010B  B8 B800						     mov ax, VIDEOSEG
+     44	010E  8E C0						     mov es, ax
+     45
+     46	0110  BB 0082						     mov bx, 82h
+     47	0113  8B 07						     mov ax, [bx]
+     48	0115  2D 0030						     sub ax, 30h
+     49
+     50	0118  43						     inc bx
+     51	0119  8A 27						     mov ah, [bx]
+     52
+     53
+     54	011B  3C 00						     cmp al, PROFILE_MODE
+     55	011D  74 0D						     je	ProfileModeSymbols
+     56
+     57	011F  BE 01A2r						     mov si, offset Two_Frame_Symbols
+Turbo Assembler	 Version 4.1	    02/27/22 23:52:27	    Page 2
+frame.asm
+
+
+
+     58	0122  3C 02						     cmp al, TWO_FRAME_MODE
+     59	0124  74 09						     je	return_back
+     60	0126  83 C6 09						     add si, 9h
+     61
+     62	0129  EB 04 90						     jmp return_back
+     63
+     64	012C			     ProfileModeSymbols	:
+     65	012C  43						     inc bx
+     66	012D  8B F3						     mov si, bx
+     67
+     68	012F  C3		     return_back:    ret
+     69	0130							     endp
+     70
+     71				     ;----------------------------------------------------------
+     72				     ; Draw a frame
+     73				     ;
+     74				     ; Entry: AH - color (attr)	of line
+     75				     ;	      CX - lenght of string
+     76				     ;	      SI - addr	of 3-byte array	containing line	elements
+     77				     ;	      DI - adress of start of line
+     78				     ; Note:  ES = videoseg addr (0b800h)
+     79				     ; Exit:  None
+     80				     ; Destr: AL, CX, SI, BX, DX
+     81				     ;----------------------------------------------------------
+     82	0130			     Draw_Frame		     proc
+     83
+     84	0130  BF 0370						     mov di, (Y_START *	80d + X_START) * 2
+     85
+     86	0133  B9 001E						     mov cx, LENGTH_FRAME
+     87
+     88	0136  8B D9						     mov bx, cx
+     89
+     90	0138  E8 003C						     call DrawLine
+     91	013B  8B CB						     mov cx, bx
+     92
+     93	013D  BA 0003						     mov dx, HIGH_FR
+     94	0140			     Draw_middle:
+     95	0140  E8 0034						     call DrawLine
+     96	0143  8B CB						     mov cx, bx
+     97	0145  83 EE 03						     sub si, 3
+     98	0148  83 EA 01						     sub dx, 1
+     99	014B  83 FA 00						     cmp dx, 0
+    100	014E  75 F0						     jne Draw_middle
+    101
+    102	0150  83 C6 03						     add si, 3
+    103	0153  E8 0021						     call DrawLine
+    104
+    105	0156  BB 0083						     mov bx, 0083h
+    106
+    107	0159  BF 04B2						     mov di, ((Y_START + 2) * 80d + X_START + 1) * 2
+    108	015C  BA 001E						     mov dx, LENGTH_FRAME
+    109	015F  83 EA 02						     sub dx, 2
+    110
+    111
+    112	0162			     Draw_letter:
+    113								     .getch
+1   114	0162  32 E4				     xor ah, ah
+Turbo Assembler	 Version 4.1	    02/27/22 23:52:27	    Page 3
+frame.asm
+
+
+
+1   115	0164  CD 16				     int 16h
+    116	0166  8A 27						     mov ah, [bx]
+    117	0168  26: 89 05						     mov es:[di], ax
+    118	016B  83 C7 02						     add di, 2
+    119	016E  83 EA 01						     sub dx, 1
+    120	0171  83 FA 00						     cmp dx, 0
+    121	0174  75 EC						     jne Draw_letter
+    122
+    123	0176  C3						     ret
+    124	0177							     endp
+    125
+    126				     ;----------------------------------------------------------
+    127				     ; Draw a line in a	frame
+    128				     ;
+    129				     ; Entry: AH - color (attr)	of line
+    130				     ;	      CX - lenght of string
+    131				     ;	      SI - addr	of 3-byte array	containing line	elements
+    132				     ;	      DI - adress of start of line
+    133				     ; Note:  ES = videoseg addr (0b800h)
+    134				     ; Exit:  None
+    135				     ; Destr: AL, CX, SI
+    136				     ;----------------------------------------------------------
+    137	0177			     DrawLine	     proc
+    138
+    139	0177  8A 04				     mov al, [si]
+    140	0179  46				     inc si
+    141	017A  26: 89 05				     mov es:[di], ax
+    142	017D  83 C7 02				     add di, 2
+    143
+    144	0180  8A 04				     mov al, [si]
+    145	0182  46				     inc si
+    146
+    147	0183  83 E9 02				     sub cx, 2
+    148	0186  76 19				     jbe @@ret
+    149
+    150	0188  26: 89 05		     @@nextSym:	     mov es:[di], ax
+    151	018B  83 C7 02				     add di, 2
+    152	018E  E2 F8				     loop @@nextSym
+    153
+    154	0190  8A 04				     mov al, [si]
+    155	0192  46						     inc si
+    156	0193  26: 89 05				     mov es:[di], ax
+    157	0196  83 C7 02				     add di, 2
+    158
+    159	0199  81 C7 00A0					     add di, 160d
+    160	019D  2B FB						     sub di, bx
+    161	019F  2B FB						     sub di, bx
+    162
+    163	01A1  C3		     @@ret:	     ret
+    164	01A2							     endp
+    165
+    166
+    167	01A2  C9 CD BB BA 20 BA	C8+  Two_Frame_Symbols:			     db	     0C9h, 0CDh, 0BBh, 0BAh, 020h, 0BAh, 0C8h, 0CDh,+
+    168	      CD BC		     0BCh
+    169
+    170	01AB  DA C4 BF B3 20 B3	C0+  One_Frame_Symbols:			     db	     0DAh, 0C4h, 0BFh, 0B3h, 020h, 0B3h, 0C0h, 0C4h,+
+    171	      C4 D9		     0D9h
+Turbo Assembler	 Version 4.1	    02/27/22 23:52:27	    Page 4
+frame.asm
+
+
+
+    172
+    173				     end Start
+Turbo Assembler	 Version 4.1	    02/27/22 23:52:27	    Page 5
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/27/22"
+??FILENAME			  Text	 "frame	  "
+??TIME				  Text	 "23:52:27"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@@NEXTSYM			  Near	 DGROUP:0188
+@@RET				  Near	 DGROUP:01A1
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 FRAME
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+DRAWLINE			  Near	 DGROUP:0177
+DRAW_FRAME			  Near	 DGROUP:0130
+DRAW_LETTER			  Near	 DGROUP:0162
+DRAW_MIDDLE			  Near	 DGROUP:0140
+HIGH_FR				  Number 0003
+LENGTH_FRAME			  Number 001E
+ONE_FRAME_MODE			  Number 0001
+ONE_FRAME_SYMBOLS		  Near	 DGROUP:01AB
+PROFILEMODESYMBOLS		  Near	 DGROUP:012C
+PROFILE_MODE			  Number 0000
+RETURN_BACK			  Near	 DGROUP:012F
+SET_REGS			  Near	 DGROUP:010B
+START				  Near	 DGROUP:0100
+TWO_FRAME_MODE			  Number 0002
+TWO_FRAME_SYMBOLS		  Near	 DGROUP:01A2
+VIDEOSEG			  Number B800
+X_START				  Number 0028
+Y_START				  Number 0005
+
+Macro Name
+
+.GETCH
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+  _TEXT				  16  01B4 Word	  Public  CODE
+
